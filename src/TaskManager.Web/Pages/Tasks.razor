@@ -1,0 +1,182 @@
+@page "/tasks"
+@attribute [Authorize]
+@inject TaskApiClient TaskApi
+
+<PageTitle>My tasks · Task Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">My tasks</h1>
+    <button class="btn btn-primary" @onclick="OpenCreate">
+        <span class="me-1">+</span> New task
+    </button>
+</div>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+
+@if (_loading)
+{
+    <p class="text-muted">Loading tasks...</p>
+}
+else if (_tasks.Count == 0)
+{
+    <div class="text-center text-muted border rounded p-5">
+        <p class="mb-2">You have no tasks yet.</p>
+        <button class="btn btn-outline-primary" @onclick="OpenCreate">Create your first task</button>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Title</th>
+                    <th scope="col" class="d-none d-md-table-cell">Description</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Due</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var task in _tasks)
+                {
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">@task.Title</div>
+                            <div class="d-md-none text-muted small">@task.Description</div>
+                        </td>
+                        <td class="d-none d-md-table-cell text-muted">@task.Description</td>
+                        <td><span class="badge @StatusClass(task.Status)">@StatusLabel(task.Status)</span></td>
+                        <td>@(task.DueDateUtc?.ToString("yyyy-MM-dd") ?? "—")</td>
+                        <td class="text-end text-nowrap">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEdit(task)">Edit</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => AskDelete(task)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_showEditor)
+{
+    <TaskEditDialog Task="_editing" OnSaved="OnEditorSaved" OnCancelled="CloseEditor" />
+}
+
+@if (_deleting is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete task</h5>
+                    <button type="button" class="btn-close" @onclick="() => _deleting = null"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete <strong>@_deleting.Title</strong>?
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="() => _deleting = null" disabled="@_busy">
+                        Cancel
+                    </button>
+                    <button class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_busy">
+                        @(_busy ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TaskResponse> _tasks = new();
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+
+    private bool _showEditor;
+    private TaskResponse? _editing;
+    private TaskResponse? _deleting;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _tasks = (await TaskApi.GetTasksAsync()).ToList();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _editing = null;
+        _showEditor = true;
+    }
+
+    private void OpenEdit(TaskResponse task)
+    {
+        _editing = task;
+        _showEditor = true;
+    }
+
+    private void CloseEditor() => _showEditor = false;
+
+    private async Task OnEditorSaved()
+    {
+        _showEditor = false;
+        await LoadAsync();
+    }
+
+    private void AskDelete(TaskResponse task) => _deleting = task;
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_deleting is null) return;
+        _busy = true;
+        try
+        {
+            await TaskApi.DeleteAsync(_deleting.Id);
+            _deleting = null;
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string StatusLabel(TaskItemStatus s) => s switch
+    {
+        TaskItemStatus.Todo => "To do",
+        TaskItemStatus.InProgress => "In progress",
+        TaskItemStatus.Done => "Done",
+        _ => s.ToString()
+    };
+
+    private static string StatusClass(TaskItemStatus s) => s switch
+    {
+        TaskItemStatus.Todo => "text-bg-secondary",
+        TaskItemStatus.InProgress => "text-bg-info",
+        TaskItemStatus.Done => "text-bg-success",
+        _ => "text-bg-light"
+    };
+}

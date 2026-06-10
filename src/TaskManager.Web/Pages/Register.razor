@@ -1,0 +1,91 @@
+@page "/register"
+@inject AuthApiClient AuthApi
+@inject NavigationManager Navigation
+
+<PageTitle>Create account · Task Manager</PageTitle>
+
+<div class="row justify-content-center">
+    <div class="col-12 col-sm-10 col-md-6 col-lg-5">
+        <div class="card shadow-sm mt-4">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-3">Create your account</h1>
+
+                <EditForm Model="_model" OnValidSubmit="HandleRegister">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label" for="name">Display name</label>
+                        <InputText id="name" class="form-control" @bind-Value="_model.DisplayName" />
+                        <ValidationMessage For="() => _model.DisplayName" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="email">Email</label>
+                        <InputText id="email" class="form-control" @bind-Value="_model.Email" autocomplete="username" />
+                        <ValidationMessage For="() => _model.Email" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="password">Password</label>
+                        <InputText id="password" type="password" class="form-control"
+                                   @bind-Value="_model.Password" autocomplete="new-password" />
+                        <ValidationMessage For="() => _model.Password" />
+                        <div class="form-text">At least 8 characters, including a letter and a digit.</div>
+                    </div>
+
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2" role="alert">@_error</div>
+                    }
+
+                    <button class="btn btn-primary w-100" type="submit" disabled="@_busy">
+                        @(_busy ? "Creating..." : "Create account")
+                    </button>
+                </EditForm>
+
+                <p class="mt-3 mb-0 text-center">
+                    Already have an account? <a href="login">Sign in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly RegisterModel _model = new();
+    private bool _busy;
+    private string? _error;
+
+    private async Task HandleRegister()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await AuthApi.RegisterAsync(new RegisterRequest(_model.Email, _model.Password, _model.DisplayName));
+            Navigation.NavigateTo("tasks");
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class RegisterModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string DisplayName { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(8)]
+        public string Password { get; set; } = "";
+    }
+}

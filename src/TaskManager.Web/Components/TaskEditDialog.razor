@@ -1,0 +1,126 @@
+@inject TaskApiClient TaskApi
+
+<div class="modal fade show d-block" tabindex="-1" role="dialog" style="background: rgba(0,0,0,.5)">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_isEdit ? "Edit task" : "New task")</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="Cancel"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="title">Title</label>
+                        <InputText id="title" class="form-control" @bind-Value="_model.Title" />
+                        <ValidationMessage For="() => _model.Title" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="desc">Description</label>
+                        <InputTextArea id="desc" class="form-control" rows="3" @bind-Value="_model.Description" />
+                        <ValidationMessage For="() => _model.Description" />
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="due">Due date</label>
+                            <InputDate id="due" class="form-control" @bind-Value="_model.DueDate" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="status">Status</label>
+                            <InputSelect id="status" class="form-select" @bind-Value="_model.Status">
+                                <option value="@TaskItemStatus.Todo">To do</option>
+                                <option value="@TaskItemStatus.InProgress">In progress</option>
+                                <option value="@TaskItemStatus.Done">Done</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2" role="alert">@_error</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="Cancel" disabled="@_busy">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary" disabled="@_busy">
+                        @(_busy ? "Saving..." : "Save")
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public TaskResponse? Task { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private readonly TaskModel _model = new();
+    private bool _isEdit;
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        _isEdit = Task is not null;
+        if (Task is not null)
+        {
+            _model.Title = Task.Title;
+            _model.Description = Task.Description;
+            _model.DueDate = Task.DueDateUtc?.Date;
+            _model.Status = Task.Status;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            // Treat the chosen calendar day as a UTC date.
+            var dueUtc = _model.DueDate is { } d
+                ? DateTime.SpecifyKind(d.Date, DateTimeKind.Utc)
+                : (DateTime?)null;
+
+            if (_isEdit && Task is not null)
+            {
+                await TaskApi.UpdateAsync(Task.Id,
+                    new UpdateTaskRequest(_model.Title, _model.Description, dueUtc, _model.Status));
+            }
+            else
+            {
+                await TaskApi.CreateAsync(
+                    new CreateTaskRequest(_model.Title, _model.Description, dueUtc, _model.Status));
+            }
+
+            await OnSaved.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task Cancel() => OnCancelled.InvokeAsync();
+
+    private sealed class TaskModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MaxLength(200)]
+        public string Title { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.MaxLength(2000)]
+        public string? Description { get; set; }
+
+        public DateTime? DueDate { get; set; }
+        public TaskItemStatus Status { get; set; } = TaskItemStatus.Todo;
+    }
+}

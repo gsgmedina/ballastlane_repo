@@ -1,0 +1,23 @@
+@inject AuthApiClient AuthApi
+@inject NavigationManager Navigation
+
+<AuthorizeView>
+    <Authorized>
+        <span class="navbar-text me-3 text-light">
+            @(context.User.Identity?.Name ?? "Signed in")
+        </span>
+        <button class="btn btn-sm btn-outline-light" @onclick="LogoutAsync">Sign out</button>
+    </Authorized>
+    <NotAuthorized>
+        <a class="btn btn-sm btn-outline-light me-2" href="login">Sign in</a>
+        <a class="btn btn-sm btn-light" href="register">Register</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        await AuthApi.LogoutAsync();
+        Navigation.NavigateTo("login");
+    }
+}

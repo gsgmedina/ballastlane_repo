@@ -1,0 +1,99 @@
+@page "/login"
+@inject AuthApiClient AuthApi
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Task Manager</PageTitle>
+
+<div class="row justify-content-center">
+    <div class="col-12 col-sm-10 col-md-6 col-lg-5">
+        <div class="card shadow-sm mt-4">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-3">Sign in</h1>
+
+                <div class="alert alert-secondary py-2 small" role="note">
+                    Demo account — <strong>@DemoEmail</strong> / <strong>@DemoPassword</strong>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @onclick="UseDemo">
+                        Use demo
+                    </button>
+                </div>
+
+                <EditForm Model="_model" OnValidSubmit="HandleLogin">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label" for="email">Email</label>
+                        <InputText id="email" class="form-control" @bind-Value="_model.Email" autocomplete="username" />
+                        <ValidationMessage For="() => _model.Email" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="password">Password</label>
+                        <InputText id="password" type="password" class="form-control"
+                                   @bind-Value="_model.Password" autocomplete="current-password" />
+                        <ValidationMessage For="() => _model.Password" />
+                    </div>
+
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2" role="alert">@_error</div>
+                    }
+
+                    <button class="btn btn-primary w-100" type="submit" disabled="@_busy">
+                        @(_busy ? "Signing in..." : "Sign in")
+                    </button>
+                </EditForm>
+
+                <p class="mt-3 mb-0 text-center">
+                    No account? <a href="register">Create one</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Mirrors the seeded credentials in the API's DataSeeder.
+    private const string DemoEmail = "demo@taskmanager.local";
+    private const string DemoPassword = "Demo123!";
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    private readonly LoginModel _model = new();
+    private bool _busy;
+    private string? _error;
+
+    private void UseDemo()
+    {
+        _model.Email = DemoEmail;
+        _model.Password = DemoPassword;
+    }
+
+    private async Task HandleLogin()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await AuthApi.LoginAsync(new LoginRequest(_model.Email, _model.Password));
+            Navigation.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl) ? "tasks" : Uri.UnescapeDataString(ReturnUrl));
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Password { get; set; } = "";
+    }
+}

@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+
+<div class="d-flex flex-column min-vh-100">
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="">✓ Task Manager</a>
+            <div class="d-flex align-items-center">
+                <AuthorizeView>
+                    <Authorized>
+                        <a class="nav-link d-inline text-light me-3" href="tasks">My tasks</a>
+                    </Authorized>
+                </AuthorizeView>
+                <LoginDisplay />
+            </div>
+        </div>
+    </nav>
+
+    <main class="container py-4 flex-grow-1">
+        @Body
+    </main>
+
+    <footer class="border-top py-3 text-center text-muted small">
+        Task Manager — BLA .NET technical exercise
+    </footer>
+</div>
